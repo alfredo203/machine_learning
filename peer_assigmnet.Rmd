@@ -5,18 +5,122 @@ date: "06/15/2015"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+##Reading the file
+```{r}
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+##READING PACKAGES
+library(ISLR); library(ggplot2); library(caret)
+
+##LOADING THE FILES
+train<-read.csv('pml-training.csv', na.strings=c("NA",""), header=TRUE)
+test<-read.csv('pml-testing.csv', na.strings=c("NA",""), header=TRUE)
+
+##CHECKING THE DIMENSIONS
+dim(test)
+dim(train)
+
+###DELETING COLUMNS THAT HAS NA
+train<-train[,colMeans(is.na(train)) == 0]
+test<-test[,colMeans(is.na(test)) == 0]
+
+
+##Creating data partition 7/10 in training 
+set.seed(123)
+inTrain<-createDataPartition(y=train$classe,
+                             p=0.7, list=FALSE)
+training<-train[inTrain,]
+test<-train[-inTrain,]
+
+```
+
+##Cross Validation
+
+Cross validation is used as a model fittering function for model 2 and 3 below. Four folds where selected as the resampling option.
+
+##Identifiying variables that has low variance
 
 ```{r}
-summary(cars)
+no_var <- nearZeroVar(training, saveMetrics=TRUE)
+print(no_var)
 ```
 
-You can also embed plots, for example:
+According to the no-variance testing all variables already included classify to be used. The modeling will continue using all variables mentioned. Classe variable do not show variance, however is the variable to be predicted so is not relevant for the moment to take any transformation on it.
 
-```{r, echo=FALSE}
-plot(cars)
+##Doing the first modeling
+
+```{r}
+###First modeling
+#set.seed(123)
+#modFit<-train(classe ~., data=training)
+#print(modFit)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+To large data set to be computed, after 2 hours processing where canceled as an option and just mentioned as comments above.
+
+##First modeling failed to compute, what is next?
+
+During the first modeling with 52 variables to be computed and make the prediction the hardware capabilities failed. Reason is that training set is very large and using a Intel i3 4RAM dual core does not achieve such hardware requirements. A random sample for 1000 observations will be enough for predicting for the course porpoise.
+
+```{r}
+##A function for selecting random rows
+random_selection = function(df,n){   ##Input the data frame and how many rows we want
+  return(df[sample(nrow(df),n),])
+}
+
+##Applying the function
+nt<-random_selection(train, 1000) ##Using the original train file and selecting 1000 random rows
+nts<-random_selection(test, 300) ##Using the test file and selection of 3/10 of the training
+
+##Creating new data partition
+inTrain<-createDataPartition(y=nt$classe,
+                             p=0.7, list=FALSE)
+training<-train[inTrain,]
+test<-train[-inTrain,]
+
+###Second modeling with less data
+set.seed(123)
+modFit<-train(classe ~., data=nt, trControl=trainControl(method = "cv", number = 4))
+print(modFit)
+```
+
+By making the smaller data sets computing time was reduced. Excellent accuracy where found even the modeling has been little transformed, however a second option will need to be tested before applying the predictions.
+
+##Model 3, using "Random Forest" method
+
+Suggested by classes, here is applied the random forest method. The selection criteria between both methods will be performed once the accuracy and confusion matrix is displayed next.
+
+```{r}
+## Third modeling with Random Forest due easy interpretation
+
+set.seed(123)
+modFit2<-train(classe ~., method = "rf", data=nt, trControl=trainControl(method = "cv", number = 4))
+print(modFit)
+```
+
+##Predictions for model 2 and 3
+
+```{r}
+preds <- predict(modFit, newdata=nts)
+
+preds2 <- predict(modFit2, newdata=nts)
+
+confusionMatrix(preds, nts$classe)
+confusionMatrix(preds2, nts$classe)
+```
+
+Surprisingly the algorithm has worked perfectly for predicting the outcomes with the both methods!. Next are shown the predictions for modeling 1 and 2. Apparently the predictions, and model frittering are the same and also the confusion matrix methods. Using the random forest method has make no difference to the algorithm.
+
+```{r}
+print(preds)
+print(preds2)
+```
+
+##Limitations
+
+Apparently using sub-setting the original test and training by a random selection has not overcome any issue, however the prediction has become perfect. Probably could exist and over-fitting problem due the models, unlike other recommended measure to solve it, for the moment results show that the predictions (much ore than the required 20) has been perfect.
+
+
+##Bibliography
+
+1. Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. 
+
